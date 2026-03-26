@@ -24,10 +24,10 @@ module.exports = {
   coverageReporters: ['text', 'lcov', 'html'],
   coverageThreshold: {
     global: {
-      branches:   45,
-      functions:  55,
-      lines:      50,
-      statements: 50,
+      branches:   75,
+      functions:  88,
+      lines:      88,
+      statements: 88,
     },
   },
   extensionsToTreatAsEsm: ['.ts'],
