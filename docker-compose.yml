@@ -1,0 +1,48 @@
+services:
+  # ── Backend API (Express + SQLite) ──────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      # DB persisted to the named volume so data survives container restarts
+      DB_PATH: /data/ci.db
+      WORK_DIR: /tmp/ci-runs
+      LOG_LEVEL: info
+    volumes:
+      # Source hot-reload: mount repo root but keep container's node_modules
+      - .:/app
+      - api_node_modules:/app/node_modules
+      # SQLite persistence
+      - ci_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── Frontend (Vite dev server) ───────────────────────────────────────────────
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      # Points the Vite proxy at the Docker service name instead of localhost
+      API_URL: http://api:3000
+    volumes:
+      - ./web:/app
+      - web_node_modules:/app/node_modules
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  ci_data:        # SQLite database — survives docker-compose down
+  api_node_modules:
+  web_node_modules:

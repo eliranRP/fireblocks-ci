@@ -26,6 +26,16 @@ const CreateWorkflowSchema = z.object({
   jobs:      z.array(JobSchema).min(1),
 });
 
+// GET /workflows — list all workflows
+workflowRouter.get('/', (_req, res, next) => {
+  try {
+    const list = workflowService.listAll();
+    res.json(list);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /workflows — create a workflow definition
 workflowRouter.post('/', validate(CreateWorkflowSchema), (req, res, next) => {
   try {

@@ -117,6 +117,20 @@ export function triggerRun(workflowId: string): string {
   return ctx.runId;
 }
 
+// TODO: N+1 query — one findByWorkflowId + N findByJobId calls per workflow.
+// Acceptable for a dev tool; replace with a single JOIN query if this endpoint
+// is used in a high-frequency production context.
+export function listAll(): WorkflowDetail[] {
+  const allWorkflows = workflowDal.findAll();
+  return allWorkflows.map((workflow) => {
+    const jobRows = jobDal.findByWorkflowId(workflow.id);
+    return {
+      ...workflow,
+      jobs: jobRows.map((job: JobRow) => ({ ...job, steps: stepDal.findByJobId(job.id) })),
+    };
+  });
+}
+
 export function getStatus(workflowId: string): WorkflowDetail {
   const workflow = workflowDal.findById(workflowId);
   const jobRows = jobDal.findByWorkflowId(workflowId);
