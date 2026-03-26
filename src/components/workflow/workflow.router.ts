@@ -1,37 +1,34 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import * as workflowService from './workflow.service.js';
-import { ValidationError } from '../../libraries/error-handler/errors.js';
 import { sseManager } from '../../libraries/sse/sse-manager.js';
+import { validate } from '../../libraries/middleware/validate.js';
+import type { CreateWorkflowInput } from './workflow.types.js';
 
 export const workflowRouter = Router();
 
 const StepSchema = z.object({
-  name: z.string().min(1),
-  type: z.enum(['shell', 'run_script', 'docker_run']).default('shell'),
+  name:    z.string().min(1),
+  type:    z.enum(['shell', 'run_script', 'docker_run']).default('shell'),
   command: z.string().min(1),
 });
 
 const JobSchema = z.object({
-  name: z.string().min(1),
+  name:  z.string().min(1),
   steps: z.array(StepSchema).min(1),
 });
 
 const CreateWorkflowSchema = z.object({
-  name: z.string().min(1),
-  event: z.string().default('push'),
+  name:      z.string().min(1),
+  event:     z.string().default('push'),
   projectId: z.string().default(''),
-  jobs: z.array(JobSchema).min(1),
+  jobs:      z.array(JobSchema).min(1),
 });
 
 // POST /workflows — create a workflow definition
-workflowRouter.post('/', (req, res, next) => {
+workflowRouter.post('/', validate(CreateWorkflowSchema), (req, res, next) => {
   try {
-    const result = CreateWorkflowSchema.safeParse(req.body);
-    if (!result.success) {
-      throw new ValidationError(result.error.issues.map((i) => i.message).join(', '));
-    }
-    const workflow = workflowService.createWorkflow(result.data);
+    const workflow = workflowService.createWorkflow(req.body as CreateWorkflowInput);
     res.status(201).json(workflow);
   } catch (err) {
     next(err);

@@ -1,27 +1,29 @@
+import { eq, asc, sql } from 'drizzle-orm';
+import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../../libraries/db/db.js';
+import { jobs } from '../../libraries/db/schema.js';
 import type { JobRow, JobStatus } from './job.types.js';
 import { NotFoundError } from '../../libraries/error-handler/errors.js';
-import { v4 as uuidv4 } from 'uuid';
 
 export function insertJob(workflowId: string, name: string, position: number): JobRow {
-  const db = getDb();
   const id = uuidv4();
-  db.prepare(
-    'INSERT INTO jobs (id, workflow_id, name, position) VALUES (?, ?, ?, ?)',
-  ).run(id, workflowId, name, position);
+  getDb().insert(jobs).values({ id, workflow_id: workflowId, name, position }).run();
   return findById(id);
 }
 
 export function findById(id: string): JobRow {
-  const db = getDb();
-  const row = db.prepare('SELECT * FROM jobs WHERE id = ?').get(id) as unknown as JobRow | undefined;
+  const row = getDb().select().from(jobs).where(eq(jobs.id, id)).get();
   if (!row) throw new NotFoundError(`Job ${id}`);
-  return row;
+  return row as JobRow;
 }
 
 export function findByWorkflowId(workflowId: string): JobRow[] {
-  const db = getDb();
-  return db.prepare('SELECT * FROM jobs WHERE workflow_id = ? ORDER BY position').all(workflowId) as unknown as JobRow[];
+  return getDb()
+    .select()
+    .from(jobs)
+    .where(eq(jobs.workflow_id, workflowId))
+    .orderBy(asc(jobs.position))
+    .all() as JobRow[];
 }
 
 export function updateStatus(
@@ -29,9 +31,14 @@ export function updateStatus(
   status: JobStatus,
   timestamps: { started_at?: string; finished_at?: string } = {},
 ): void {
-  const db = getDb();
   const { started_at, finished_at } = timestamps;
-  db.prepare(
-    'UPDATE jobs SET status = ?, started_at = COALESCE(?, started_at), finished_at = COALESCE(?, finished_at) WHERE id = ?',
-  ).run(status, started_at ?? null, finished_at ?? null, id);
+  getDb()
+    .update(jobs)
+    .set({
+      status,
+      started_at:  started_at  ? started_at  : sql<string>`started_at`,
+      finished_at: finished_at ? finished_at : sql<string>`finished_at`,
+    })
+    .where(eq(jobs.id, id))
+    .run();
 }

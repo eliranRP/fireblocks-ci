@@ -13,6 +13,7 @@
     "test:integration": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.config.cjs tests/integration"
   },
   "dependencies": {
+    "drizzle-orm": "^1.0.0-beta.19",
     "express": "^4.18.3",
     "pino": "^8.19.0",
     "pino-http": "^9.0.0",

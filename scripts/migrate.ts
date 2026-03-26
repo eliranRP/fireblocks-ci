@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getDb } from '../src/libraries/db/db.js';
+import { getSqlite as getDb } from '../src/libraries/db/db.js';
 import { logger } from '../src/libraries/logger/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
