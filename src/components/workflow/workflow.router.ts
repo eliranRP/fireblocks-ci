@@ -14,8 +14,9 @@ const StepSchema = z.object({
 });
 
 const JobSchema = z.object({
-  name:  z.string().min(1),
-  steps: z.array(StepSchema).min(1),
+  name:     z.string().min(1),
+  position: z.number().int().nonnegative().optional(),
+  steps:    z.array(StepSchema).min(1),
 });
 
 const CreateWorkflowSchema = z.object({

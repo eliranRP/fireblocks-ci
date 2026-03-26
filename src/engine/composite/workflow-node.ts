@@ -2,7 +2,7 @@ import type { INodeState } from '../states/node-state.interface.js';
 import type { RunContext } from '../context.js';
 import { PendingState } from '../states/pending.state.js';
 
-export type NodeType = 'workflow' | 'job' | 'step';
+export type NodeType = 'workflow' | 'stage' | 'job' | 'step';
 
 export abstract class WorkflowNode {
   protected state: INodeState;

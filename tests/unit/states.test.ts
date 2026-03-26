@@ -28,7 +28,6 @@ function makeCtx(): RunContext {
     workDir: '/tmp',
     env: {},
     status: 'pending',
-    logs: [],
   };
 }
 

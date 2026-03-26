@@ -9,7 +9,6 @@ function makeCtx(): RunContext {
     workDir: '/tmp',
     env: {},
     status: 'pending',
-    logs: [],
   };
 }
 
@@ -19,16 +18,15 @@ beforeEach(() => {
 
 describe('RunScriptCommand', () => {
   it('executes a successful shell command and emits step:result success', async () => {
-    const events: string[] = [];
-    eventBus.on('step:result', (e) => events.push(e.status));
+    const results: Array<{ status: string; log: string }> = [];
+    eventBus.on('step:result', (e) => results.push({ status: e.status, log: e.log }));
 
     const cmd = new RunScriptCommand({ stepId: 'step-1', script: 'echo hello', workDir: '/tmp' });
-    const ctx = makeCtx();
-    await cmd.execute(ctx);
+    await cmd.execute(makeCtx());
 
-    expect(ctx.logs.length).toBe(1);
-    expect(ctx.logs[0]).toContain('hello');
-    expect(events).toEqual(['success']);
+    expect(results).toHaveLength(1);
+    expect(results[0]?.status).toBe('success');
+    expect(results[0]?.log).toContain('hello');
   });
 
   it('emits step:result failed and re-throws on command failure', async () => {

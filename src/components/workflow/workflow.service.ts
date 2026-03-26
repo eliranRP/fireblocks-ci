@@ -6,6 +6,7 @@ import * as workflowDal from './workflow.dal.js';
 import * as jobDal from '../job/job.dal.js';
 import * as stepDal from '../step/step.dal.js';
 import { WorkflowComposite } from '../../engine/composite/workflow-composite.js';
+import { StageComposite } from '../../engine/composite/stage-composite.js';
 import { JobComposite } from '../../engine/composite/job-composite.js';
 import { StepLeaf } from '../../engine/composite/step-leaf.js';
 import { fromRow as commandFromRow } from '../../engine/commands/command-factory.js';
@@ -50,7 +51,7 @@ export function createWorkflow(input: CreateWorkflowInput): WorkflowRow {
         id:          jobId,
         workflow_id: workflowId,
         name:        jobInput.name,
-        position:    jobIndex,
+        position:    jobInput.position ?? jobIndex,
       }).run();
 
       jobInput.steps.forEach((stepInput, stepIndex) => {
@@ -72,19 +73,42 @@ export function createWorkflow(input: CreateWorkflowInput): WorkflowRow {
   });
 }
 
+/**
+ * Groups DB rows into the Composite execution tree — no side effects.
+ * Invariant: jobRows is non-empty — enforced by Zod (jobs.min(1)) at the API boundary.
+ */
+function buildExecutionTree(workflow: WorkflowRow, jobRows: JobRow[]): WorkflowComposite {
+  // Jobs with the same position run as a parallel stage; different positions run sequentially.
+  const byPosition = new Map<number, JobRow[]>();
+  for (const jobRow of jobRows) {
+    const group = byPosition.get(jobRow.position) ?? [];
+    group.push(jobRow);
+    byPosition.set(jobRow.position, group);
+  }
+
+  const stages = [...byPosition.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([pos, group]) => {
+      const jobComposites = group.map((jobRow: JobRow) => {
+        const stepLeaves = stepDal.findByJobId(jobRow.id).map((stepRow: StepRow) =>
+          new StepLeaf(stepRow.id, stepRow.name, commandFromRow(stepRow)),
+        );
+        return new JobComposite(jobRow.id, jobRow.name, stepLeaves);
+      });
+
+      // Single-job stage: reuse the job name for cleaner SSE output.
+      const stageName = group.length === 1 ? group[0]!.name : `Stage ${pos}`;
+      return new StageComposite(`stage-${pos}-${workflow.id}`, stageName, jobComposites);
+    });
+
+  return new WorkflowComposite(workflow.id, workflow.name, stages);
+}
+
 export function triggerRun(workflowId: string): string {
   const workflow = workflowDal.findById(workflowId);
   const jobRows = jobDal.findByWorkflowId(workflowId);
 
-  const jobComposites = jobRows.map((jobRow: JobRow) => {
-    const stepRows = stepDal.findByJobId(jobRow.id);
-    const stepLeaves = stepRows.map((stepRow: StepRow) =>
-      new StepLeaf(stepRow.id, stepRow.name, commandFromRow(stepRow)),
-    );
-    return new JobComposite(jobRow.id, jobRow.name, stepLeaves);
-  });
-
-  const tree = new WorkflowComposite(workflow.id, workflow.name, jobComposites);
+  const tree = buildExecutionTree(workflow, jobRows);
   const ctx = createRunContext(workflowId, config.workDir);
 
   // Fire-and-forget — caller gets runId immediately

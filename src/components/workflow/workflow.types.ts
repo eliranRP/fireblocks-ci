@@ -22,6 +22,9 @@ export interface CreateStepInput {
 
 export interface CreateJobInput {
   name: string;
+  /** Execution position. Jobs sharing the same position run in parallel.
+   *  Omit to use the array index (each job runs sequentially). */
+  position?: number;
   steps: CreateStepInput[];
 }
 

@@ -1,15 +1,8 @@
 import { eq, asc, sql } from 'drizzle-orm';
-import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../../libraries/db/db.js';
 import { jobs } from '../../libraries/db/schema.js';
 import type { JobRow, JobStatus } from './job.types.js';
 import { NotFoundError } from '../../libraries/error-handler/errors.js';
-
-export function insertJob(workflowId: string, name: string, position: number): JobRow {
-  const id = uuidv4();
-  getDb().insert(jobs).values({ id, workflow_id: workflowId, name, position }).run();
-  return findById(id);
-}
 
 export function findById(id: string): JobRow {
   const row = getDb().select().from(jobs).where(eq(jobs.id, id)).get();

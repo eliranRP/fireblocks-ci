@@ -1,15 +1,8 @@
 import { eq, sql } from 'drizzle-orm';
-import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../../libraries/db/db.js';
 import { workflows } from '../../libraries/db/schema.js';
 import type { WorkflowRow, WorkflowStatus } from './workflow.types.js';
 import { NotFoundError } from '../../libraries/error-handler/errors.js';
-
-export function insertWorkflow(name: string, event: string, projectId: string): WorkflowRow {
-  const id = uuidv4();
-  getDb().insert(workflows).values({ id, name, event, project_id: projectId }).run();
-  return findById(id);
-}
 
 export function findById(id: string): WorkflowRow {
   const row = getDb().select().from(workflows).where(eq(workflows.id, id)).get();

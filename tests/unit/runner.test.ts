@@ -1,5 +1,6 @@
 import { runWorkflow } from '../../src/engine/runner.js';
 import { WorkflowComposite } from '../../src/engine/composite/workflow-composite.js';
+import { StageComposite } from '../../src/engine/composite/stage-composite.js';
 import { JobComposite } from '../../src/engine/composite/job-composite.js';
 import { StepLeaf } from '../../src/engine/composite/step-leaf.js';
 import { createRunContext } from '../../src/engine/context.js';
@@ -17,10 +18,9 @@ function makeCommand(shouldFail = false): ICommand {
 }
 
 function singleStepWorkflow(workflowId: string, fail = false): WorkflowComposite {
+  const job = new JobComposite('j1', 'job-1', [new StepLeaf('s1', 'step-1', makeCommand(fail))]);
   return new WorkflowComposite(workflowId, 'pipeline', [
-    new JobComposite('j1', 'job-1', [
-      new StepLeaf('s1', 'step-1', makeCommand(fail)),
-    ]),
+    new StageComposite('stage-0', 'job-1', [job]),
   ]);
 }
 
@@ -77,9 +77,8 @@ describe('runWorkflow — event emission', () => {
   });
 
   it('always emits run:complete even when the handler chain throws unexpectedly', async () => {
-    // Pass a tree with an invalid workflowId to trigger ValidateHandler error
-    const ctx = createRunContext('wf-1', '/tmp');
-    ctx.workflowId = ''; // ValidateHandler requires a non-empty workflowId
+    // createRunContext with an empty workflowId triggers ValidateHandler's guard
+    const ctx = createRunContext('', '/tmp');
     const tree = singleStepWorkflow('wf-1');
 
     let completed = false;

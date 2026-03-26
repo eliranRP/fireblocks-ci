@@ -7,8 +7,9 @@ export interface RunContext {
   readonly workflowId: string;
   readonly workDir: string;
   readonly env: Record<string, string>;
+  // Mutable by design: nodes write their status here so parallel siblings can detect
+  // a failure and abort their own step loops without explicit cancellation signals.
   status: RunStatus;
-  logs: string[];
 }
 
 export function createRunContext(workflowId: string, workDir: string): RunContext {
@@ -18,6 +19,5 @@ export function createRunContext(workflowId: string, workDir: string): RunContex
     workDir,
     env: {},
     status: 'pending',
-    logs: [],
   };
 }

@@ -20,7 +20,11 @@ export function fromRow(row: StepRow): ICommand {
         image: String(data['image'] ?? ''),
         command: String(data['command'] ?? ''),
       });
-    default:
-      throw new ValidationError(`Unknown command type: ${row.command_type}`);
+    default: {
+      // Exhaustiveness check — TypeScript will error here if a new CommandType is added
+      // to step.types.ts without a corresponding case above.
+      const unreachable: never = row.command_type;
+      throw new ValidationError(`Unknown command type: ${unreachable}`);
+    }
   }
 }

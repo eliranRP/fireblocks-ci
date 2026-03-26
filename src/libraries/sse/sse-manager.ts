@@ -27,6 +27,11 @@ class SseManager {
       res.write(payload);
     }
   }
+
+  /** Drops all tracked clients across all runIds — use in test teardown to prevent cross-test leakage. */
+  removeAllClients(): void {
+    this.clients.clear();
+  }
 }
 
 export const sseManager = new SseManager();

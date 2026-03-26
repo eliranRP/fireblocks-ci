@@ -1,18 +1,18 @@
 import { WorkflowNode } from './workflow-node.js';
-import type { JobComposite } from './job-composite.js';
+import type { StageComposite } from './stage-composite.js';
 import type { RunContext } from '../context.js';
 
 export class WorkflowComposite extends WorkflowNode {
-  private readonly jobs: JobComposite[];
+  private readonly stages: StageComposite[];
 
-  constructor(id: string, name: string, jobs: JobComposite[]) {
+  constructor(id: string, name: string, stages: StageComposite[]) {
     super(id, name, 'workflow');
-    this.jobs = jobs;
+    this.stages = stages;
   }
 
   async doWork(ctx: RunContext): Promise<void> {
-    for (const job of this.jobs) {
-      await job.run(ctx);
+    for (const stage of this.stages) {
+      await stage.run(ctx);
       if (ctx.status === 'failed') return;
     }
   }

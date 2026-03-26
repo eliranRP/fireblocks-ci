@@ -1,52 +1,14 @@
 import { closeDb } from '../../src/libraries/db/db.js';
 import { runMigrations } from '../../scripts/migrate.js';
 import { eventBus } from '../../src/libraries/events/event-bus.js';
+import { wireEventListeners } from '../../src/app.js';
+import { sseManager } from '../../src/libraries/sse/sse-manager.js';
 
 // Use in-memory DB and a real temp dir for integration tests
 process.env['DB_PATH'] = ':memory:';
 process.env['WORK_DIR'] = '/tmp';
 
-// Wire listeners the same way app.ts does
-import * as workflowDal from '../../src/components/workflow/workflow.dal.js';
-import * as jobDal from '../../src/components/job/job.dal.js';
-import * as stepDal from '../../src/components/step/step.dal.js';
-import type { NodeStatusEvent, StepResultEvent, RunCompleteEvent } from '../../src/libraries/events/event-bus.types.js';
-
-function wireListeners() {
-  const now = () => new Date().toISOString();
-
-  eventBus.on('node:status', (event: NodeStatusEvent) => {
-    const { id, type, status } = event;
-    try {
-      if (type === 'workflow') {
-        workflowDal.updateStatus(id, status as Parameters<typeof workflowDal.updateStatus>[1], {
-          started_at: status === 'running' ? now() : undefined,
-          finished_at: status === 'success' || status === 'failed' ? now() : undefined,
-        });
-      } else if (type === 'job') {
-        jobDal.updateStatus(id, status as Parameters<typeof jobDal.updateStatus>[1], {
-          started_at: status === 'running' ? now() : undefined,
-          finished_at: status === 'success' || status === 'failed' ? now() : undefined,
-        });
-      } else if (type === 'step') {
-        stepDal.updateStatus(id, status as Parameters<typeof stepDal.updateStatus>[1], {
-          started_at: status === 'running' ? now() : undefined,
-          finished_at: status === 'success' || status === 'failed' ? now() : undefined,
-        });
-      }
-    } catch { /* ignore during test */ }
-  });
-
-  eventBus.on('step:result', (event: StepResultEvent) => {
-    try {
-      stepDal.saveResult(event.stepId, {
-        status: event.status,
-        log: event.log,
-        duration_ms: event.duration_ms,
-      });
-    } catch { /* ignore during test */ }
-  });
-}
+import type { RunCompleteEvent } from '../../src/libraries/events/event-bus.types.js';
 
 /** Resolves when the run identified by runId emits run:complete, or rejects after timeoutMs. */
 function waitForRun(runId: string, timeoutMs = 5000): Promise<RunCompleteEvent> {
@@ -72,11 +34,12 @@ import * as workflowService from '../../src/components/workflow/workflow.service
 
 beforeAll(() => {
   runMigrations();
-  wireListeners();
+  wireEventListeners();
 });
 
 afterAll(() => {
   eventBus.removeAllListeners();
+  sseManager.removeAllClients();
   closeDb();
 });
 
@@ -348,5 +311,80 @@ describe('Failure propagation', () => {
 
     expect(result.status).toBe('failed');
     expect(result.runId).toBe(runId);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Parallel job execution (position-based grouping in buildExecutionTree)
+// ---------------------------------------------------------------------------
+
+describe('Parallel job execution', () => {
+  it('two jobs with the same position both succeed and the workflow succeeds', async () => {
+    const workflow = workflowService.createWorkflow({
+      name: 'Parallel Success',
+      event: 'push',
+      projectId: 'proj-parallel',
+      jobs: [
+        { name: 'job-a', position: 0, steps: [{ name: 'run', type: 'shell', command: 'echo job-a' }] },
+        { name: 'job-b', position: 0, steps: [{ name: 'run', type: 'shell', command: 'echo job-b' }] },
+      ],
+    });
+
+    const runId = workflowService.triggerRun(workflow.id);
+    const result = await waitForRun(runId);
+
+    expect(result.status).toBe('success');
+
+    const status = workflowService.getStatus(workflow.id);
+    expect(status.status).toBe('success');
+    expect(status.jobs.every((j) => j.status === 'success')).toBe(true);
+  });
+
+  it('when one parallel job fails the workflow fails, and a subsequent sequential stage is skipped', async () => {
+    const workflow = workflowService.createWorkflow({
+      name: 'Parallel Failure + Sequential Skip',
+      event: 'push',
+      projectId: 'proj-parallel',
+      jobs: [
+        // Stage 0: two parallel jobs — one will fail
+        { name: 'job-pass', position: 0, steps: [{ name: 'run', type: 'shell', command: 'echo ok' }] },
+        { name: 'job-fail', position: 0, steps: [{ name: 'run', type: 'shell', command: 'exit 1' }] },
+        // Stage 1: sequential job that should never start
+        { name: 'job-after', position: 1, steps: [{ name: 'run', type: 'shell', command: 'echo after' }] },
+      ],
+    });
+
+    const runId = workflowService.triggerRun(workflow.id);
+    const result = await waitForRun(runId);
+
+    expect(result.status).toBe('failed');
+
+    const status = workflowService.getStatus(workflow.id);
+    expect(status.status).toBe('failed');
+
+    // The sequential stage-1 job was never started
+    const afterJob = status.jobs.find((j) => j.name === 'job-after');
+    expect(afterJob?.status).toBe('pending');
+  });
+
+  it('sequential jobs with explicit positions run in order and all succeed', async () => {
+    const workflow = workflowService.createWorkflow({
+      name: 'Explicit Sequential Positions',
+      event: 'push',
+      projectId: 'proj-parallel',
+      jobs: [
+        { name: 'first',  position: 0, steps: [{ name: 'run', type: 'shell', command: 'echo first' }] },
+        { name: 'second', position: 1, steps: [{ name: 'run', type: 'shell', command: 'echo second' }] },
+        { name: 'third',  position: 2, steps: [{ name: 'run', type: 'shell', command: 'echo third' }] },
+      ],
+    });
+
+    const runId = workflowService.triggerRun(workflow.id);
+    const result = await waitForRun(runId);
+
+    expect(result.status).toBe('success');
+
+    const status = workflowService.getStatus(workflow.id);
+    expect(status.jobs.every((j) => j.status === 'success')).toBe(true);
   });
 });

@@ -42,7 +42,6 @@ export class RunScriptCommand extends BaseCommand {
         env: { ...process.env, ...ctx.env, ...this.env },
       });
       const log = stdout || stderr;
-      ctx.logs.push(log);
       eventBus.emit('step:result', {
         stepId: this.stepId,
         status: 'success',

@@ -11,6 +11,12 @@ export class RunningState implements INodeState {
 
     try {
       await node.doWork(ctx);
+      // A parallel sibling may have already set ctx.status to 'failed' while
+      // this node was running. doWork() would have returned early (no throw),
+      // but the node did not complete successfully — treat it as failed.
+      if (ctx.status === 'failed') {
+        throw new Error('Aborted: a sibling node failed');
+      }
       node.setState(new SuccessState());
       eventBus.emit('node:status', { id: node.id, type: node.type, status: 'success', runId: ctx.runId });
     } catch (err) {

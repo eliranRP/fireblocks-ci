@@ -1,24 +1,8 @@
 import { eq, asc, sql } from 'drizzle-orm';
-import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../../libraries/db/db.js';
 import { steps } from '../../libraries/db/schema.js';
 import type { StepRow, StepResult, StepStatus } from './step.types.js';
 import { NotFoundError } from '../../libraries/error-handler/errors.js';
-
-export function insertStep(
-  jobId: string,
-  name: string,
-  position: number,
-  commandType: string,
-  commandJson: string,
-): StepRow {
-  const id = uuidv4();
-  getDb()
-    .insert(steps)
-    .values({ id, job_id: jobId, name, position, command_type: commandType, command_json: commandJson })
-    .run();
-  return findById(id);
-}
 
 export function findById(id: string): StepRow {
   const row = getDb().select().from(steps).where(eq(steps.id, id)).get();
