@@ -11,7 +11,8 @@
     "test": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.config.cjs",
     "test:unit": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.config.cjs tests/unit",
     "test:integration": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.config.cjs tests/integration",
-    "test:coverage": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.config.cjs --coverage"
+    "test:coverage": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.config.cjs --coverage",
+    "demo": "bash scripts/demo.sh"
   },
   "dependencies": {
     "drizzle-orm": "^1.0.0-beta.19",
