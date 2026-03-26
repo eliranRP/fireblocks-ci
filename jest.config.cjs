@@ -15,6 +15,21 @@ module.exports = {
       },
     ],
   ],
+  collectCoverageFrom: [
+    'src/**/*.ts',
+    '!src/**/*.types.ts',   // type-only files have no runtime code
+    '!src/config/index.ts', // thin env-read wrapper, no logic to test
+  ],
+  coverageDirectory: 'coverage',
+  coverageReporters: ['text', 'lcov', 'html'],
+  coverageThreshold: {
+    global: {
+      branches:   45,
+      functions:  55,
+      lines:      50,
+      statements: 50,
+    },
+  },
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
@@ -33,5 +48,4 @@ module.exports = {
     ],
   },
   testMatch: ['**/tests/**/*.test.ts'],
-  collectCoverageFrom: ['src/**/*.ts'],
 };

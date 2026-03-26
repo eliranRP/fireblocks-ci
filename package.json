@@ -10,7 +10,8 @@
     "start": "node dist/server.js",
     "test": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.config.cjs",
     "test:unit": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.config.cjs tests/unit",
-    "test:integration": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.config.cjs tests/integration"
+    "test:integration": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.config.cjs tests/integration",
+    "test:coverage": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.config.cjs --coverage"
   },
   "dependencies": {
     "drizzle-orm": "^1.0.0-beta.19",
