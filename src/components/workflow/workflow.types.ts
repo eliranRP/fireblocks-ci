@@ -11,9 +11,12 @@ export interface WorkflowRow {
   finished_at: string | null;
 }
 
+export type StepCommandType = 'shell' | 'run_script' | 'docker_run';
+
 export interface CreateStepInput {
   name: string;
-  type: string;
+  /** 'shell' and 'run_script' are aliases for shell execution; 'docker_run' runs inside a container. */
+  type: StepCommandType;
   command: string;
 }
 

@@ -8,7 +8,7 @@ export const workflowRouter = Router();
 
 const StepSchema = z.object({
   name: z.string().min(1),
-  type: z.string().default('shell'),
+  type: z.enum(['shell', 'run_script', 'docker_run']).default('shell'),
   command: z.string().min(1),
 });
 

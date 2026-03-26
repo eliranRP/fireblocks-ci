@@ -10,7 +10,7 @@ process.env['WORK_DIR'] = '/tmp';
 import * as workflowDal from '../../src/components/workflow/workflow.dal.js';
 import * as jobDal from '../../src/components/job/job.dal.js';
 import * as stepDal from '../../src/components/step/step.dal.js';
-import type { NodeStatusEvent, StepResultEvent } from '../../src/libraries/events/event-bus.types.js';
+import type { NodeStatusEvent, StepResultEvent, RunCompleteEvent } from '../../src/libraries/events/event-bus.types.js';
 
 function wireListeners() {
   const now = () => new Date().toISOString();
@@ -45,6 +45,26 @@ function wireListeners() {
         duration_ms: event.duration_ms,
       });
     } catch { /* ignore during test */ }
+  });
+}
+
+/** Resolves when the run identified by runId emits run:complete, or rejects after timeoutMs. */
+function waitForRun(runId: string, timeoutMs = 5000): Promise<RunCompleteEvent> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      eventBus.off('run:complete', handler);
+      reject(new Error(`run:complete not received for runId=${runId} within ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    const handler = (event: RunCompleteEvent) => {
+      if (event.runId === runId) {
+        clearTimeout(timer);
+        eventBus.off('run:complete', handler);
+        resolve(event);
+      }
+    };
+
+    eventBus.on('run:complete', handler);
   });
 }
 
@@ -97,8 +117,8 @@ describe('Workflow execution integration', () => {
     const runId = workflowService.triggerRun(workflow.id);
     expect(runId).toBeDefined();
 
-    // Wait for async execution to complete
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const result = await waitForRun(runId);
+    expect(result.status).toBe('success');
 
     const status = workflowService.getStatus(workflow.id);
     expect(status.status).toBe('success');
@@ -126,8 +146,10 @@ describe('Workflow execution integration', () => {
       ],
     });
 
-    workflowService.triggerRun(workflow.id);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    const runId = workflowService.triggerRun(workflow.id);
+
+    const result = await waitForRun(runId);
+    expect(result.status).toBe('failed');
 
     const status = workflowService.getStatus(workflow.id);
     expect(status.status).toBe('failed');

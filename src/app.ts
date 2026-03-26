@@ -76,8 +76,6 @@ export function wireEventListeners(): void {
   });
 }
 
-wireEventListeners();
-
 app.use(errorHandler);
 
 export { app };

@@ -8,11 +8,11 @@ import { fromRow as commandFromRow } from '../../engine/commands/command-factory
 import { createRunContext } from '../../engine/context.js';
 import { runWorkflow } from '../../engine/runner.js';
 import { config } from '../../config/index.js';
-import type { CreateWorkflowInput, WorkflowRow } from './workflow.types.js';
+import type { CreateWorkflowInput, WorkflowRow, StepCommandType } from './workflow.types.js';
 import type { JobRow } from '../job/job.types.js';
 import type { StepRow } from '../step/step.types.js';
 
-export interface WorkflowStatus {
+export interface WorkflowDetail {
   id: string;
   name: string;
   event: string;
@@ -31,12 +31,14 @@ export function createWorkflow(input: CreateWorkflowInput): WorkflowRow {
     const job = jobDal.insertJob(workflow.id, jobInput.name, jobIndex);
 
     jobInput.steps.forEach((stepInput, stepIndex) => {
+      // 'shell' is an alias for 'run_script' at the API boundary
+      const commandType: StepCommandType = stepInput.type === 'shell' ? 'run_script' : stepInput.type;
       stepDal.insertStep(
         job.id,
         stepInput.name,
         stepIndex,
-        'run_script',
-        JSON.stringify({ type: 'run_script', script: stepInput.command, workDir: config.workDir }),
+        commandType,
+        JSON.stringify({ type: commandType, script: stepInput.command, workDir: config.workDir }),
       );
     });
   });
@@ -65,7 +67,7 @@ export function triggerRun(workflowId: string): string {
   return ctx.runId;
 }
 
-export function getStatus(workflowId: string): WorkflowStatus {
+export function getStatus(workflowId: string): WorkflowDetail {
   const workflow = workflowDal.findById(workflowId);
   const jobs = jobDal.findByWorkflowId(workflowId);
 
