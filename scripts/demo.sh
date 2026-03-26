@@ -146,38 +146,41 @@ curl -N -s -H "Accept: text/event-stream" \
     -v green="$GREEN" -v yellow="$YELLOW" -v red="$RED" -v cyan="$CYAN" \
     -v dim="$DIM" \
 '
-function ts(    cmd, result) {
+# POSIX-compatible JSON string field extractor.
+# Copies the input, strips everything before "key":" and after the next quote.
+# Works on both BSD awk (macOS) and GNU awk (Linux) — no 3-arg match() needed.
+function extract(json, key,   copy) {
+  copy = json
+  if (index(copy, "\"" key "\":\"") == 0) return ""
+  sub(".*\"" key "\":\"", "", copy)
+  sub("\".*",             "", copy)
+  return copy
+}
+
+function ts(   cmd, result) {
   cmd = "date +%H:%M:%S"
   cmd | getline result
   close(cmd)
   return result
 }
+
 function colour(status) {
   if (status == "success") return green
   if (status == "running") return cyan
   if (status == "failed")  return red
   return yellow
 }
+
 /^event:/ {
-  event = substr($0, 8)   # strip "event: "
+  event = substr($0, 8)
   next
 }
 /^data:/ {
-  data = substr($0, 7)    # strip "data: "
-
-  # extract "status" field
-  match(data, /"status":"([^"]+)"/, arr)
-  status = arr[1]
-
-  # extract "type" field (node:status events)
-  match(data, /"type":"([^"]+)"/, tarr)
-  ntype = tarr[1]
-
-  # extract "id" field
-  match(data, /"id":"([^"]+)"/, idarr)
-  nid = idarr[1]
-
-  t = ts()
+  data   = substr($0, 7)
+  status = extract(data, "status")
+  ntype  = extract(data, "type")
+  nid    = extract(data, "id")
+  t      = ts()
 
   if (event == "node:status") {
     col = colour(status)

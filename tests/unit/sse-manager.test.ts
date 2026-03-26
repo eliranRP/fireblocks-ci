@@ -62,6 +62,38 @@ describe('SseManager', () => {
     expect(() => sseManager.broadcast('run-3', 'run:complete', {})).not.toThrow();
   });
 
+  // ── wire-format contract tests ─────────────────────────────────────────────
+  // demo.sh parses the SSE stream with POSIX awk. These tests pin the exact
+  // wire format so that changes to the broadcast payload are caught early.
+
+  it('node:status wire format contains event line, then JSON data line, then blank line', () => {
+    const res = makeRes();
+    sseManager.addClient('run-fmt', res);
+    sseManager.broadcast('run-fmt', 'node:status', { id: 'step-1', type: 'step', status: 'running' });
+
+    const payload = (res.write as jest.Mock).mock.calls[0]?.[0] as string;
+    const lines = payload.split('\n');
+    expect(lines[0]).toBe('event: node:status');
+    expect(lines[1]).toBe('data: {"id":"step-1","type":"step","status":"running"}');
+    expect(lines[2]).toBe('');   // blank separator
+    expect(lines[3]).toBe('');   // trailing newline from \n\n
+
+    sseManager.removeClient('run-fmt', res);
+  });
+
+  it('run:complete wire format contains status field parseable by POSIX tools', () => {
+    const res = makeRes();
+    sseManager.addClient('run-fmt2', res);
+    sseManager.broadcast('run-fmt2', 'run:complete', { status: 'success' });
+
+    const payload = (res.write as jest.Mock).mock.calls[0]?.[0] as string;
+    expect(payload).toContain('event: run:complete\n');
+    expect(payload).toContain('"status":"success"');
+    expect(payload).toMatch(/\n\n$/);   // must end with double newline (SSE spec)
+
+    sseManager.removeClient('run-fmt2', res);
+  });
+
   it('supports multiple independent runIds simultaneously', () => {
     const resA = makeRes();
     const resB = makeRes();
