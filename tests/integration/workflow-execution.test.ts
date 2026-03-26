@@ -1,5 +1,4 @@
-import { DatabaseSync } from 'node:sqlite';
-import { closeDb, getDb } from '../../src/libraries/db/db.js';
+import { closeDb } from '../../src/libraries/db/db.js';
 import { runMigrations } from '../../scripts/migrate.js';
 import { eventBus } from '../../src/libraries/events/event-bus.js';
 

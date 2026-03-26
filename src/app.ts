@@ -14,45 +14,46 @@ import type { NodeStatusEvent, StepResultEvent, RunCompleteEvent } from './libra
 
 const app = express();
 
-// Middleware
 app.use(express.json());
 app.use(pinoHttp({ logger }));
 
-// Routes
 app.use('/workflows', workflowRouter);
 app.use('/jobs', jobRouter);
 app.use('/steps', stepRouter);
 
-// Health check
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
-// Wire event-bus listeners — single place where engine events become DB writes + SSE pushes
-function wireEventListeners(): void {
-  const now = () => new Date().toISOString();
+function now(): string {
+  return new Date().toISOString();
+}
 
+function timestampsFor(status: NodeStatusEvent['status']): { started_at?: string; finished_at?: string } {
+  return {
+    started_at: status === 'running' ? now() : undefined,
+    finished_at: status === 'success' || status === 'failed' ? now() : undefined,
+  };
+}
+
+// Single place where engine events become DB writes + SSE pushes.
+// Deliberately explicit — the engine knows nothing about persistence or HTTP.
+export function wireEventListeners(): void {
   eventBus.on('node:status', (event: NodeStatusEvent) => {
-    const { id, type, status } = event;
+    const { id, type, status, runId } = event;
+    const timestamps = timestampsFor(status);
 
     try {
       if (type === 'workflow') {
-        workflowDal.updateStatus(id, status as Parameters<typeof workflowDal.updateStatus>[1], {
-          started_at: status === 'running' ? now() : undefined,
-          finished_at: status === 'success' || status === 'failed' ? now() : undefined,
-        });
+        workflowDal.updateStatus(id, status, timestamps);
       } else if (type === 'job') {
-        jobDal.updateStatus(id, status as Parameters<typeof jobDal.updateStatus>[1], {
-          started_at: status === 'running' ? now() : undefined,
-          finished_at: status === 'success' || status === 'failed' ? now() : undefined,
-        });
+        jobDal.updateStatus(id, status, timestamps);
       } else if (type === 'step') {
-        stepDal.updateStatus(id, status as Parameters<typeof stepDal.updateStatus>[1], {
-          started_at: status === 'running' ? now() : undefined,
-          finished_at: status === 'success' || status === 'failed' ? now() : undefined,
-        });
+        stepDal.updateStatus(id, status, timestamps);
       }
     } catch (err) {
       logger.error({ err, event }, 'Failed to persist node:status');
     }
+
+    sseManager.broadcast(runId, 'node:status', { id, type, status });
   });
 
   eventBus.on('step:result', (event: StepResultEvent) => {
@@ -68,24 +69,15 @@ function wireEventListeners(): void {
   });
 
   eventBus.on('run:complete', (event: RunCompleteEvent) => {
-    // Broadcast run completion to all SSE clients subscribed to this runId
     sseManager.broadcast(event.runId, 'run:complete', {
       status: event.status,
       error: event.error,
     });
   });
-
-  eventBus.on('node:status', (event: NodeStatusEvent) => {
-    // Also broadcast node status changes to SSE — no runId in event, broadcast by workflowId isn't available here.
-    // The SSE channel key is runId; clients should subscribe once they receive the runId from POST /run.
-    // We broadcast using the node id as a fallback broadcast key only if clients are subscribed to it.
-    sseManager.broadcast(event.id, 'node:status', event);
-  });
 }
 
 wireEventListeners();
 
-// Central error handler — must be last
 app.use(errorHandler);
 
 export { app };

@@ -1,17 +1,20 @@
 import type { NodeType } from '../../engine/composite/workflow-node.js';
-import type { WorkflowStatus } from '../../components/workflow/workflow.types.js';
-import type { StepStatus } from '../../components/step/step.types.js';
+
+// Status values the engine actually emits — excludes 'pending' and 'skipped'
+// which are set only at creation time, never via events.
+export type NodeStatus = 'running' | 'success' | 'failed';
 
 export interface NodeStatusEvent {
   id: string;
   type: NodeType;
-  status: WorkflowStatus | StepStatus;
+  status: NodeStatus;
+  runId: string;
   error?: string;
 }
 
 export interface StepResultEvent {
   stepId: string;
-  status: StepStatus;
+  status: 'success' | 'failed';
   log: string;
   duration_ms: number;
 }

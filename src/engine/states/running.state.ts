@@ -7,17 +7,17 @@ import { eventBus } from '../../libraries/events/event-bus.js';
 
 export class RunningState implements INodeState {
   async execute(node: WorkflowNode, ctx: RunContext): Promise<void> {
-    eventBus.emit('node:status', { id: node.id, type: node.type, status: 'running' });
+    eventBus.emit('node:status', { id: node.id, type: node.type, status: 'running', runId: ctx.runId });
 
     try {
       await node.doWork(ctx);
       node.setState(new SuccessState());
-      eventBus.emit('node:status', { id: node.id, type: node.type, status: 'success' });
+      eventBus.emit('node:status', { id: node.id, type: node.type, status: 'success', runId: ctx.runId });
     } catch (err) {
       node.setState(new FailedState());
       ctx.status = 'failed';
       const message = err instanceof Error ? err.message : String(err);
-      eventBus.emit('node:status', { id: node.id, type: node.type, status: 'failed', error: message });
+      eventBus.emit('node:status', { id: node.id, type: node.type, status: 'failed', runId: ctx.runId, error: message });
       throw err;
     }
   }
